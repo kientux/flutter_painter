@@ -29,11 +29,13 @@ class _FreeStyleWidgetState extends State<_FreeStyleWidget> {
     return RawGestureDetector(
       behavior: HitTestBehavior.opaque,
       gestures: {
-        _DragGestureDetector: GestureRecognizerFactoryWithHandlers<_DragGestureDetector>(
+        _DragGestureDetector:
+            GestureRecognizerFactoryWithHandlers<_DragGestureDetector>(
           () => _DragGestureDetector(
             onHorizontalDragDown: _handleHorizontalDragDown,
             onHorizontalDragUpdate: _handleHorizontalDragUpdate,
             onHorizontalDragUp: _handleHorizontalDragUp,
+            onHorizontalDragCancel: _handleHorizontalDragCancel,
           ),
           (_) {},
         ),
@@ -43,13 +45,23 @@ class _FreeStyleWidgetState extends State<_FreeStyleWidget> {
   }
 
   /// Getter for [FreeStyleSettings] from `widget.controller.value` to make code more readable.
-  FreeStyleSettings get settings => PainterController.of(context).value.settings.freeStyle;
+  FreeStyleSettings get settings =>
+      PainterController.of(context).value.settings.freeStyle;
 
   /// Getter for [ShapeSettings] from `widget.controller.value` to make code more readable.
-  ShapeSettings get shapeSettings => PainterController.of(context).value.settings.shape;
+  ShapeSettings get shapeSettings =>
+      PainterController.of(context).value.settings.shape;
+
+  bool get isInteracting => PainterController.of(context).value.isInteracting;
+
+  Offset? _startPosition;
 
   /// Callback when the user holds their pointer(s) down onto the widget.
   void _handleHorizontalDragDown(Offset globalPosition) {
+    _startPosition = globalPosition;
+  }
+
+  _startDraw(Offset globalPosition) {
     // If the user is already drawing, don't create a new drawing
     if (this.drawable != null) return;
 
@@ -79,30 +91,60 @@ class _FreeStyleWidgetState extends State<_FreeStyleWidget> {
 
     // Set the drawable as the current drawable
     this.drawable = drawable;
+
+    // notify that we now start drawing
+    DrawableIsDrawingStateChangedNotification(true).dispatch(context);
   }
 
   /// Callback when the user moves, rotates or scales the pointer(s).
   void _handleHorizontalDragUpdate(Offset globalPosition) {
+    if (isInteracting) return;
+
+    if (_startPosition != null) {
+      _startDraw(_startPosition!);
+      _startPosition = null;
+    }
+
     final drawable = this.drawable;
     // If there is no current drawable, ignore user input
     if (drawable == null) return;
 
     // Add the new point to a copy of the current drawable
     final newDrawable = drawable.copyWith(
-      path: List<Offset>.from(drawable.path)..add(_globalToLocal(globalPosition)),
+      path: List<Offset>.from(drawable.path)
+        ..add(_globalToLocal(globalPosition)),
     );
     // Replace the current drawable with the copy with the added point
-    PainterController.of(context).replaceDrawable(drawable, newDrawable, newAction: false);
+    PainterController.of(context)
+        .replaceDrawable(drawable, newDrawable, newAction: false);
     // Update the current drawable to be the new copy
     this.drawable = newDrawable;
   }
 
   /// Callback when the user removes all pointers from the widget.
   void _handleHorizontalDragUp() {
+    if (_startPosition != null) {
+      _startDraw(_startPosition!);
+      _startPosition = null;
+    }
+
     DrawableCreatedNotification(drawable).dispatch(context);
+    // notify that we now start drawing
+    DrawableIsDrawingStateChangedNotification(false).dispatch(context);
 
     /// Reset the current drawable for the user to draw a new one next time
     drawable = null;
+  }
+
+  /// Callback when the pointer event was falsely directed to us.
+  /// E.g. when the wrist was layed on the pad, but then a pen is recognized.
+  /// => the painting input of the wrist is invalid!
+  void _handleHorizontalDragCancel() {
+    if (drawable != null && drawable is PathDrawable) {
+      PainterController.of(context).removeDrawable(drawable!);
+    }
+    drawable = null;
+    DrawableIsDrawingStateChangedNotification(false).dispatch(context);
   }
 
   Offset _globalToLocal(Offset globalPosition) {
@@ -118,11 +160,13 @@ class _DragGestureDetector extends OneSequenceGestureRecognizer {
     required this.onHorizontalDragDown,
     required this.onHorizontalDragUpdate,
     required this.onHorizontalDragUp,
+    required this.onHorizontalDragCancel,
   });
 
   final ValueSetter<Offset> onHorizontalDragDown;
   final ValueSetter<Offset> onHorizontalDragUpdate;
   final VoidCallback onHorizontalDragUp;
+  final VoidCallback onHorizontalDragCancel;
 
   bool _isTrackingGesture = false;
 
@@ -145,6 +189,10 @@ class _DragGestureDetector extends OneSequenceGestureRecognizer {
       onHorizontalDragUpdate(event.position);
     } else if (event is PointerUpEvent) {
       onHorizontalDragUp();
+      stopTrackingPointer(event.pointer);
+      _isTrackingGesture = false;
+    } else if (event is PointerCancelEvent) {
+      onHorizontalDragCancel();
       stopTrackingPointer(event.pointer);
       _isTrackingGesture = false;
     }

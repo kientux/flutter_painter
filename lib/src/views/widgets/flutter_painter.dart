@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_painter/src/controllers/notifications/is_drawing_state_changed.dart';
 
 import '../../controllers/drawables/drawable.dart';
 import '../../controllers/drawables/object_drawable.dart';
@@ -54,6 +55,9 @@ class FlutterPainter extends StatelessWidget {
   /// Callback when the [PainterSettings] of [PainterController] are updated internally.
   final ValueChanged<PainterSettings>? onPainterSettingsChanged;
 
+  /// Callback when a [FreeStyleDrawable] starts or stops being drawn
+  final ValueChanged<bool>? onIsDrawingStateChanged;
+
   final double? aspectRatio;
 
   /// The builder used to build this widget.
@@ -72,7 +76,8 @@ class FlutterPainter extends StatelessWidget {
       this.onDrawableCreated,
       this.onDrawableDeleted,
       this.onSelectedObjectDrawableChanged,
-      this.onPainterSettingsChanged})
+      this.onPainterSettingsChanged,
+      this.onIsDrawingStateChanged})
       : _builder = _defaultBuilder,
         super(key: key);
 
@@ -88,7 +93,8 @@ class FlutterPainter extends StatelessWidget {
       this.onDrawableCreated,
       this.onDrawableDeleted,
       this.onSelectedObjectDrawableChanged,
-      this.onPainterSettingsChanged})
+      this.onPainterSettingsChanged,
+      this.onIsDrawingStateChanged})
       : _builder = builder,
         super(key: key);
 
@@ -109,6 +115,7 @@ class FlutterPainter extends StatelessWidget {
                   onDrawableDeleted: onDrawableDeleted,
                   onPainterSettingsChanged: onPainterSettingsChanged,
                   onSelectedObjectDrawableChanged: onSelectedObjectDrawableChanged,
+                  onIsDrawingStateChanged: onIsDrawingStateChanged,
                 ));
           }),
     );
@@ -139,6 +146,9 @@ class _FlutterPainterWidget extends StatelessWidget {
   /// Callback when the [PainterSettings] of [PainterController] are updated internally.
   final ValueChanged<PainterSettings>? onPainterSettingsChanged;
 
+  /// Callback when a [FreeStyleDrawable] starts or stops being drawn
+  final ValueChanged<bool>? onIsDrawingStateChanged;
+
   /// Creates a [_FlutterPainterWidget] with the given [controller] and optional callbacks.
   const _FlutterPainterWidget(
       {Key? key,
@@ -147,7 +157,8 @@ class _FlutterPainterWidget extends StatelessWidget {
       this.onDrawableCreated,
       this.onDrawableDeleted,
       this.onSelectedObjectDrawableChanged,
-      this.onPainterSettingsChanged})
+      this.onPainterSettingsChanged,
+      this.onIsDrawingStateChanged})
       : super(key: key);
 
   @override
@@ -168,6 +179,14 @@ class _FlutterPainterWidget extends StatelessWidget {
                   panEnabled:
                       controller.settings.scale.enabled && (controller.freeStyleSettings.mode == FreeStyleMode.none),
                   scaleEnabled: controller.settings.scale.enabled,
+                  onInteractionStart: (details) {
+                    if (details.pointerCount > 1) {
+                      controller.value = controller.value.copyWith(isInteracting: true);
+                    }
+                  },
+                  onInteractionEnd: (details) {
+                    controller.value = controller.value.copyWith(isInteracting: false);
+                  },
                   child: Center(
                     child: aspectRatio == null
                         ? _PainterWidget(controller)
@@ -188,6 +207,8 @@ class _FlutterPainterWidget extends StatelessWidget {
       onSelectedObjectDrawableChanged?.call(notification.drawable);
     } else if (notification is SettingsUpdatedNotification) {
       onPainterSettingsChanged?.call(notification.settings);
+    } else if (notification is DrawableIsDrawingStateChangedNotification) {
+      onIsDrawingStateChanged?.call(notification.isDrawing);
     }
     return true;
   }

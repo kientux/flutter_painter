@@ -385,6 +385,8 @@ class PainterControllerValue {
   /// The currently selected object drawable.
   final ObjectDrawable? selectedObjectDrawable;
 
+  final bool isInteracting;
+
   /// Creates a new [PainterControllerValue] with the provided [settings] and [background].
   ///
   /// The user can pass a list of initial [drawables] which will be drawn without user interaction.
@@ -393,6 +395,7 @@ class PainterControllerValue {
     List<Drawable> drawables = const [],
     this.background,
     this.selectedObjectDrawable,
+    this.isInteracting = false,
   }) : _drawables = drawables;
 
   /// Getter for the current drawables.
@@ -406,6 +409,7 @@ class PainterControllerValue {
     List<Drawable>? drawables,
     BackgroundDrawable? background = _NoBackgroundPassedBackgroundDrawable.instance,
     ObjectDrawable? selectedObjectDrawable = _NoObjectPassedBackgroundDrawable.instance,
+    bool isInteracting= false,
   }) {
     return PainterControllerValue(
       settings: settings ?? this.settings,
@@ -414,6 +418,7 @@ class PainterControllerValue {
       selectedObjectDrawable: selectedObjectDrawable == _NoObjectPassedBackgroundDrawable.instance
           ? this.selectedObjectDrawable
           : selectedObjectDrawable,
+      isInteracting: isInteracting,
     );
   }
 
@@ -424,11 +429,12 @@ class PainterControllerValue {
         (const ListEquality().equals(_drawables, other._drawables) &&
             background == other.background &&
             settings == other.settings &&
-            selectedObjectDrawable == other.selectedObjectDrawable);
+            selectedObjectDrawable == other.selectedObjectDrawable &&
+            isInteracting == other.isInteracting);
   }
 
   @override
-  int get hashCode => hashValues(hashList(_drawables), background, settings, selectedObjectDrawable);
+  int get hashCode => hashValues(hashList(_drawables), background, settings, selectedObjectDrawable, isInteracting);
 }
 
 /// Private class that is used internally to represent no
